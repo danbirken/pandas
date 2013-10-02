@@ -93,11 +93,8 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
             if box and not isinstance(arg, DatetimeIndex):
                 try:
                     return DatetimeIndex(arg, tz='utc' if utc else None)
-                except ValueError as e:
-                    values, tz = tslib.datetime_to_datetime64(arg)
-                    return DatetimeIndex._simple_new(values, None, tz=tz)
-
-            return arg
+                except ValueError:
+                    pass
 
         arg = com._ensure_object(arg)
         try:

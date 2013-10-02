@@ -543,6 +543,7 @@ Bug Fixes
     and other reshaping issues.
   - Bug in setting with ``ix/loc`` and a mixed int/string index (:issue:`4544`)
   - Make sure series-series boolean comparions are label based (:issue:`4947`)
+<<<<<<< HEAD
   - Bug in multi-level indexing with a Timestamp partial indexer (:issue:`4294`)
   - Tests/fix for multi-index construction of an all-nan frame (:isue:`4078`)
   - Fixed a bug where :func:`~pandas.read_html` wasn't correctly inferring
@@ -555,7 +556,7 @@ Bug Fixes
     type of headers (:issue:`5048`).
   - Fixed a bug where ``DatetimeIndex`` joins with ``PeriodIndex`` caused a
     stack overflow (:issue:`3899`).
-
+  - Fix bound checking for Timestamp() with datetime64 input (:issue:`4065`)
 
 pandas 0.12.0
 -------------
