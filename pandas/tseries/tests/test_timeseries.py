@@ -1018,11 +1018,7 @@ class TestTimeSeries(unittest.TestCase):
             np.array_equal(
                 pd.to_datetime(dts_with_oob, box=False, coerce=False),
                 np.array(
-                    [
-                        date(2000, 1, 1),
-                        date(2000, 1, 2),
-                        date(9999, 1, 1)
-                    ],
+                    [dt.item() for dt in dts_with_oob],
                     dtype='O'
                 )
             )

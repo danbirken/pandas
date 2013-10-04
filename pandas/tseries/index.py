@@ -204,7 +204,7 @@ class DatetimeIndex(Int64Index):
                 data = _str_to_dt_array(data, offset, dayfirst=dayfirst,
                                         yearfirst=yearfirst)
             else:
-                data = tools.to_datetime(data)
+                data = tools.to_datetime(data, errors='raise')
                 data.offset = offset
                 if isinstance(data, DatetimeIndex):
                     if name is not None:
@@ -1051,7 +1051,7 @@ class DatetimeIndex(Int64Index):
         if not isinstance(other, DatetimeIndex):
             try:
                 other = DatetimeIndex(other)
-            except TypeError:
+            except (TypeError, ValueError):
                 pass
             result = Index.intersection(self, other)
             if isinstance(result, DatetimeIndex):

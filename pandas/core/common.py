@@ -41,6 +41,7 @@ _POSSIBLY_CAST_DTYPES = set([np.dtype(t)
                                       'uint8', 'int16', 'uint16', 'int32',
                                       'uint32', 'int64', 'uint64']])
 
+_US_DTYPE = np.dtype('M8[us]')
 _NS_DTYPE = np.dtype('M8[ns]')
 _TD_DTYPE = np.dtype('m8[ns]')
 _INT64_DTYPE = np.dtype(np.int64)
@@ -348,6 +349,12 @@ def _pickle_array(arr):
 
 def _unpickle_array(bytes):
     arr = read_array(BytesIO(bytes))
+
+    # The default datetime64 type in numpy 1.6 is [us].  When pickling
+    # and unpickling, we need to read this as [us] to [ns]
+    if arr.dtype == _US_DTYPE:
+        arr = arr.view(_NS_DTYPE)
+
     return arr
 
 
@@ -1780,6 +1787,14 @@ def is_datetime64_dtype(arr_or_dtype):
         tipo = arr_or_dtype.dtype.type
     return issubclass(tipo, np.datetime64)
 
+def is_datetime64_ns_dtype(arr_or_dtype):
+    if isinstance(arr_or_dtype, np.dtype):
+        tipo = arr_or_dtype
+    elif isinstance(arr_or_dtype, type):
+        tipo = np.dtype(arr_or_dtype)
+    else:
+        tipo = arr_or_dtype.dtype
+    return tipo == _NS_DTYPE
 
 def is_timedelta64_dtype(arr_or_dtype):
     if isinstance(arr_or_dtype, np.dtype):
