@@ -37,6 +37,8 @@ from pandas import bdate_range
 from pandas.tseries.index import DatetimeIndex
 from pandas.tseries.period import PeriodIndex
 
+from pandas import _testing
+
 from pandas.io.common import urlopen
 
 Index = index.Index
@@ -372,7 +374,7 @@ def assert_attr_equal(attr, left, right):
 def isiterable(obj):
     return hasattr(obj, '__iter__')
 
-
+"""
 def assert_almost_equal(a, b, check_less_precise=False):
     if isinstance(a, dict) or isinstance(b, dict):
         return assert_dict_equal(a, b)
@@ -395,10 +397,11 @@ def assert_almost_equal(a, b, check_less_precise=False):
                 assert_almost_equal(a[i], b[i], check_less_precise)
         return True
 
-    err_msg = lambda a, b: 'expected %.5f but got %.5f' % (b, a)
-
     if isnull(a):
         np.testing.assert_(isnull(b))
+        return
+    elif isnull(b):
+        np.testing.assert_(isnull(a))
         return
 
     if isinstance(a, (bool, float, int, np.float32)):
@@ -412,6 +415,8 @@ def assert_almost_equal(a, b, check_less_precise=False):
                 if dtype_a.itemsize <= 4 and dtype_b.itemsize <= 4:
                     decimal = 3
 
+        err_msg = lambda a, b: 'expected %.5f but got %.5f' % (b, a)
+
         if np.isinf(a):
             assert np.isinf(b), err_msg(a, b)
 
@@ -424,10 +429,13 @@ def assert_almost_equal(a, b, check_less_precise=False):
                 1, a / b, decimal=decimal, err_msg=err_msg(a, b), verbose=False)
     else:
         assert a == b, "%s != %s" % (a, b)
+"""
 
+def assert_almost_equal(a, b, check_less_precise=False):
+    _testing.assert_almost_equal(a, b, check_less_precise=check_less_precise)
 
 def is_sorted(seq):
-    return assert_almost_equal(seq, np.sort(np.array(seq)))
+    return _testing.assert_almost_equal(seq, np.sort(np.array(seq)))
 
 
 def assert_dict_equal(a, b, compare_keys=True):
@@ -447,11 +455,11 @@ def assert_series_equal(left, right, check_dtype=True,
                         check_less_precise=False):
     if check_series_type:
         assert_isinstance(left, type(right))
-    assert_almost_equal(left.values, right.values, check_less_precise)
+    _testing.assert_almost_equal(left.values, right.values, check_less_precise)
     if check_dtype:
         assert_attr_equal('dtype', left, right)
     if check_less_precise:
-        assert_almost_equal(
+        _testing.assert_almost_equal(
             left.index.values, right.index.values, check_less_precise)
     else:
         assert_index_equal(left.index, right.index)
@@ -475,8 +483,8 @@ def assert_frame_equal(left, right, check_dtype=True,
 
     if check_less_precise:
         if not by_blocks:
-            assert_almost_equal(left.columns, right.columns)
-        assert_almost_equal(left.index, right.index)
+            _testing.assert_almost_equal(left.columns, right.columns)
+        _testing.assert_almost_equal(left.index, right.index)
     else:
         if not by_blocks:
             assert_index_equal(left.columns, right.columns)
@@ -557,7 +565,7 @@ def assert_copy(iter1, iter2, **eql_kwargs):
     check that items in sequences are also not the same object)
     """
     for elem1, elem2 in zip(iter1, iter2):
-        assert_almost_equal(elem1, elem2, **eql_kwargs)
+        _testing.assert_almost_equal(elem1, elem2, **eql_kwargs)
         assert elem1 is not elem2, "Expected object %r and object %r to be different objects, were same." % (
                                     type(elem1), type(elem2))
 
