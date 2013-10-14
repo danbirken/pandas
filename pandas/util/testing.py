@@ -432,7 +432,9 @@ def assert_almost_equal(a, b, check_less_precise=False):
 """
 
 def assert_almost_equal(a, b, check_less_precise=False):
-    _testing.assert_almost_equal(a, b, check_less_precise=check_less_precise)
+    return _testing.assert_almost_equal(
+        a, b, check_less_precise=check_less_precise
+    )
 
 def is_sorted(seq):
     return _testing.assert_almost_equal(seq, np.sort(np.array(seq)))
