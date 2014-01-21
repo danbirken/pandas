@@ -12,7 +12,7 @@ import pandas.compat as compat
 
 try:
     import dateutil
-    from dateutil.parser import parse, DEFAULTPARSER
+    from dateutil.parser import parse, _timelex, DEFAULTPARSER
     from dateutil.relativedelta import relativedelta
 
     # raise exception if dateutil 2.0 install on 2.x platform
@@ -50,9 +50,88 @@ def _maybe_get_tz(tz):
         tz = pytz.FixedOffset(tz / 60)
     return tz
 
+def _guess_datetime_format(datetime_string, **kwargs):
+    if not isinstance(datetime_string, compat.string_types):
+        return None
+
+    datetime_attr_to_format = (
+        (('year',), '%Y'),
+        (('month',), '%m'),
+        (('month',), '%b'),
+        (('month',), '%B'),
+        (('day',), '%d'),
+        (('hour',), '%H'),
+        (('minute',), '%M'),
+        (('second',), '%S'),
+        (('microsecond',), '%f'),
+        (('second', 'microsecond'), '%S.%f'),
+    )
+
+    try:
+        parsed_datetime = compat.parse_date(datetime_string, **kwargs)
+    except:
+        # In case the datetime can't be parsed, its format cannot be guessed
+        return None
+
+    if parsed_datetime is None:
+        return None
+
+    try:
+        tokens = _timelex.split(datetime_string)
+    except:
+        # In case the datetime string can't be split, its format cannot
+        # be guessed
+        return None
+
+    format_guess = [None] * len(tokens)
+
+    found_attrs = set()
+
+    for attrs, attr_format in datetime_attr_to_format:
+        if all(getattr(parsed_datetime, attr) is not None for attr in attrs):
+            for i, token_format in enumerate(format_guess):
+                if (
+                        token_format is None and
+                        tokens[i] == parsed_datetime.strftime(attr_format)
+                        ):
+                    format_guess[i] = attr_format
+                    found_attrs.update(attrs)
+                    break
+
+    # Only consider it a valid guess if we have a year, month and day
+    if len(set(['year', 'month', 'day']) & found_attrs) != 3:
+        return None
+
+    output_format = []
+    for i, guess in enumerate(format_guess):
+        if guess is not None:
+            # Either fill in the format placeholder (like %Y)
+            output_format.append(guess)
+        else:
+            # Or just the token separate (IE, the dashes in "01-01-2013")
+            try:
+                # If the token is numeric, then we likely didn't parse it
+                # properly, so our guess is wrong
+                float(tokens[i])
+                return None
+            except ValueError:
+                pass
+
+            output_format.append(tokens[i])
+
+    guessed_format = ''.join(output_format)
+
+    if parsed_datetime.strftime(guessed_format) == datetime_string:
+        return guessed_format
+
+def _guess_datetime_format_for_array(arr, **kwargs):
+    # Try to guess the format based on the first non-NaN element
+    non_nan_elements = com.notnull(arr).nonzero()[0]
+    if len(non_nan_elements):
+        return _guess_datetime_format(arr[non_nan_elements[0]], **kwargs)
 
 def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
-                format=None, coerce=False, unit='ns'):
+                format=None, coerce=False, unit='ns', infer_format=False):
     """
     Convert argument to datetime
 
@@ -75,6 +154,9 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     coerce : force errors to NaT (False by default)
     unit : unit of the arg (D,s,ms,us,ns) denote the unit in epoch
         (e.g. a unix timestamp), which is an integer/float number
+    infer_format: If no `format` is given, try to infer the format
+                  based on the first datetime string.  Provides a large
+                  speed-up in many cases.
 
     Returns
     -------
@@ -98,7 +180,7 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     from pandas.core.series import Series
     from pandas.tseries.index import DatetimeIndex
 
-    def _convert_listlike(arg, box):
+    def _convert_listlike(arg, box, format):
 
         if isinstance(arg, (list,tuple)):
             arg = np.array(arg, dtype='O')
@@ -113,10 +195,26 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
             return arg
 
         arg = com._ensure_object(arg)
-        try:
-            if format is not None:
-                result = None
 
+        if infer_format and format is None:
+            format = _guess_datetime_format_for_array(arg, dayfirst=dayfirst)
+
+            if format is not None:
+                # There is a special fast-path for iso8601 formatted
+                # datetime strings, so in those cases don't use the inferred
+                # format because this path makes process slower in this
+                # special case
+                format_is_iso8601 = (
+                    '%Y-%m-%dT%H:%M:%S.%f'.startswith(format) or
+                    '%Y-%m-%d %H:%M:%S.%f'.startswith(format)
+                )
+                if format_is_iso8601:
+                    format = None
+
+        try:
+            result = None
+
+            if format is not None:
                 # shortcut formatting here
                 if format == '%Y%m%d':
                     try:
@@ -127,15 +225,24 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
                 # fallback
                 if result is None:
                     try:
-                        result = tslib.array_strptime(arg, format, coerce=coerce)
+                        result = tslib.array_strptime(
+                            arg, format, coerce=coerce
+                        )
                     except (tslib.OutOfBoundsDatetime):
                         if errors == 'raise':
                             raise
                         result = arg
-            else:
+                    except ValueError:
+                        # Only raise this error if the user provided the
+                        # datetime format, and not when it was inferred
+                        if not infer_format:
+                            raise
+
+            if result is None and (format is None or infer_format):
                 result = tslib.array_to_datetime(arg, raise_=errors == 'raise',
                                                  utc=utc, dayfirst=dayfirst,
                                                  coerce=coerce, unit=unit)
+
             if com.is_datetime64_dtype(result) and box:
                 result = DatetimeIndex(result, tz='utc' if utc else None)
             return result
@@ -152,12 +259,12 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     elif isinstance(arg, Timestamp):
         return arg
     elif isinstance(arg, Series):
-        values = _convert_listlike(arg.values, box=False)
+        values = _convert_listlike(arg.values, False, format)
         return Series(values, index=arg.index, name=arg.name)
     elif com.is_list_like(arg):
-        return _convert_listlike(arg, box=box)
+        return _convert_listlike(arg, box, format)
 
-    return _convert_listlike(np.array([ arg ]), box=box)[0]
+    return _convert_listlike(np.array([ arg ]), box, format)[0]
 
 class DateParseError(ValueError):
     pass
