@@ -50,9 +50,65 @@ def _maybe_get_tz(tz):
         tz = pytz.FixedOffset(tz / 60)
     return tz
 
+def _guess_datetime_format(datetime_string):
+    datetime_attr_to_format = (
+        ('year', '%Y'),
+        ('month', '%m'),
+        ('day', '%d'),
+        ('hour', '%H'),
+        ('minute', '%M'),
+        ('second', '%S'),
+        ('microsecond', '%f'),
+    )
+
+    parsed_datetime = compat.parse_date(datetime_string)
+
+    if parsed_datetime is None:
+        return None
+
+    tokens = [t for t in re.split(r'(\d+)', datetime_string) if t]
+    format_guess = [None] * len(tokens)
+
+    for attr, attr_format in datetime_attr_to_format:
+        value = getattr(parsed_datetime, attr)
+        if value is not None:
+            for i, token_format in enumerate(format_guess):
+                if (
+                        token_format is None and
+                        tokens[i] == parsed_datetime.strftime(attr_format)
+                        ):
+                    format_guess[i] = attr_format
+                    break
+
+    output_format = []
+    for i, guess in enumerate(format_guess):
+        if guess is not None:
+            # Either fill in the format placeholder (like %Y)
+            output_format.append(guess)
+        else:
+            # Or just the token separate (IE, the dashes in "01-01-2013")
+            try:
+                # If the token is numeric, then we likely didn't parse it
+                # properly, so our guess is wrong
+                float(tokens[i])
+                return None
+            except ValueError:
+                pass
+
+            output_format.append(tokens[i])
+
+    # Only consider it a valid guess if we have a year, month and day
+    if len(set(['%Y', '%m', '%d']) & set(output_format)) != 3:
+        return None
+    
+    guessed_format = ''.join(output_format)
+
+    if parsed_datetime.strftime(guessed_format) == datetime_string:
+        return guessed_format
+
 
 def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
-                format=None, coerce=False, unit='ns'):
+                format=None, coerce=False, unit='ns', infer_format=False):
     """
     Convert argument to datetime
 
@@ -75,6 +131,9 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     coerce : force errors to NaT (False by default)
     unit : unit of the arg (D,s,ms,us,ns) denote the unit in epoch
         (e.g. a unix timestamp), which is an integer/float number
+    infer_format: If no `format` is given, try to infer the format
+                  based on the first datetime string.  Provides a large
+                  speed-up in many cases.
 
     Returns
     -------
@@ -98,7 +157,7 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     from pandas.core.series import Series
     from pandas.tseries.index import DatetimeIndex
 
-    def _convert_listlike(arg, box):
+    def _convert_listlike(arg, box, datetime_format):
 
         if isinstance(arg, (list,tuple)):
             arg = np.array(arg, dtype='O')
@@ -114,11 +173,33 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
 
         arg = com._ensure_object(arg)
         try:
-            if format is not None:
+            if (infer_format and
+                    datetime_format is None and 
+                    len(arg) and
+                    isinstance(arg[0], compat.string_types)
+                    ):
+                datetime_format = _guess_datetime_format(arg[0])
+
+                format_is_iso8601 = (
+                    '%Y-%m-%dT%H:%M:%S.%f'.startswith(datetime_format) or
+                    '%Y-%m-%d %H:%M:%S.%f'.startswith(datetime_format)
+                )
+
+                # There is a special fast-path for iso8601 formatted
+                # datetime strings, so in those cases don't use the inferred
+                # format because this path makes process slower in this
+                # special case
+                if format_is_iso8601:
+                    datetime_format = None
+        except:
+            pass
+
+        try:
+            if datetime_format is not None:
                 result = None
 
                 # shortcut formatting here
-                if format == '%Y%m%d':
+                if datetime_format == '%Y%m%d':
                     try:
                         result = _attempt_YYYYMMDD(arg)
                     except:
@@ -127,11 +208,18 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
                 # fallback
                 if result is None:
                     try:
-                        result = tslib.array_strptime(arg, format, coerce=coerce)
+                        result = tslib.array_strptime(
+                            arg, datetime_format, coerce=coerce
+                        )
                     except (tslib.OutOfBoundsDatetime):
                         if errors == 'raise':
                             raise
                         result = arg
+                    except ValueError:
+                        # Only raise this error if the user provided the
+                        # datetime format, and not when it was inferred
+                        if not infer_format:
+                            raise
             else:
                 result = tslib.array_to_datetime(arg, raise_=errors == 'raise',
                                                  utc=utc, dayfirst=dayfirst,
@@ -152,12 +240,12 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     elif isinstance(arg, Timestamp):
         return arg
     elif isinstance(arg, Series):
-        values = _convert_listlike(arg.values, box=False)
+        values = _convert_listlike(arg.values, False, format)
         return Series(values, index=arg.index, name=arg.name)
     elif com.is_list_like(arg):
-        return _convert_listlike(arg, box=box)
+        return _convert_listlike(arg, box, format)
 
-    return _convert_listlike(np.array([ arg ]), box=box)[0]
+    return _convert_listlike(np.array([ arg ]), box, format)[0]
 
 class DateParseError(ValueError):
     pass

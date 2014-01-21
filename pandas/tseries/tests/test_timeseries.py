@@ -18,6 +18,7 @@ from pandas import (Index, Series, TimeSeries, DataFrame,
 from pandas.core.daterange import DateRange
 import pandas.core.datetools as datetools
 import pandas.tseries.offsets as offsets
+import pandas.tseries.tools as tools
 import pandas.tseries.frequencies as fmod
 import pandas as pd
 
@@ -1107,6 +1108,29 @@ class TestTimeSeries(tm.TestCase):
         rs = xp.to_datetime()
         self.assert_(xp.freq == rs.freq)
         self.assert_(xp.tzinfo == rs.tzinfo)
+
+    def test_to_datetime_infer_format(self):
+        time_series = pd.Series(pd.date_range('20000101', periods=50, freq='H'))
+
+        test_formats = [
+            '%m-%d-%Y',
+            '%m/%d/%Y %H:%M:%S.%f',
+            '%Y-%m-%dT%H:%M:%S.%f',
+        ]
+
+        for test_format in test_formats:
+            s_as_dt_strings = time_series.apply(
+                lambda x: x.strftime(test_format)
+            )
+
+            with_format = pd.to_datetime(s_as_dt_strings, format=test_format)
+            no_infer = pd.to_datetime(s_as_dt_strings, infer_format=False)
+            yes_infer = pd.to_datetime(s_as_dt_strings, infer_format=True)
+
+            # Whether the format is explicitly passed, it is inferred, or
+            # it is not inferred, the results should all be the same
+            self.assert_(np.array_equal(with_format, no_infer))
+            self.assert_(np.array_equal(no_infer, yes_infer))
 
     def test_range_misspecified(self):
         # GH #1095
@@ -3123,6 +3147,24 @@ class TestSlicing(tm.TestCase):
         self.assertEqual(dr[0], Timestamp('2013-01-31'))
         self.assertEqual(dr[1], Timestamp('2014-01-30'))
 
+
+class TestGuessDatetimeFormat(tm.TestCase):
+    def test_guess_datetime_format(self):
+        dt_formats = [
+            '%Y-%m-%d',
+            '%d-%m-%Y',
+            '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%dT%H:%M:%S',
+            '%Y-%m-%d %H:%M:%S.%f',
+        ]
+
+        sample_dt = datetime(2011, 12, 30, 0, 0, 0)
+
+        for dt_format in dt_formats:
+            self.assertEquals(
+                tools._guess_datetime_format(sample_dt.strftime(dt_format)),
+                dt_format
+            )
 
 if __name__ == '__main__':
     nose.runmodule(argv=[__file__, '-vvs', '-x', '--pdb', '--pdb-failure'],
