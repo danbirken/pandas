@@ -16,6 +16,7 @@ import pandas.core.common as com
 from pandas.core.config import get_option
 from pandas.io.date_converters import generic_parser
 from pandas.io.common import get_filepath_or_buffer
+from pandas.tseries import tools
 
 from pandas.util.decorators import Appender
 
@@ -88,6 +89,9 @@ parse_dates : boolean, list of ints or names, list of lists, or dict
     If [[1, 3]] -> combine columns 1 and 3 and parse as a single date column.
     {'foo' : [1, 3]} -> parse columns 1, 3 as date and call result 'foo'
     A fast-path exists for iso8601-formatted dates.
+infer_datetime_format : boolean, default False
+    If True and parse_dates is enabled for a column, attempt to infer
+    the datetime format to speed up the processing
 keep_date_col : boolean, default False
     If True and parse_dates specifies combining multiple columns then
     keep the original columns.
@@ -247,6 +251,7 @@ _parser_defaults = {
 
     # 'engine': 'c',
     'parse_dates': False,
+    'infer_datetime_format': False,
     'keep_date_col': False,
     'dayfirst': False,
     'date_parser': None,
@@ -336,6 +341,7 @@ def _make_parser_function(name, sep=','):
                  decimal=b'.',
 
                  parse_dates=False,
+                 infer_datetime_format=False,
                  keep_date_col=False,
                  dayfirst=False,
                  date_parser=None,
@@ -382,6 +388,7 @@ def _make_parser_function(name, sep=','):
                     decimal=decimal,
 
                     parse_dates=parse_dates,
+                    infer_datetime_format=infer_datetime_format,
                     keep_date_col=keep_date_col,
                     dayfirst=dayfirst,
                     date_parser=date_parser,
@@ -656,6 +663,7 @@ class ParserBase(object):
         self.col_names = None
 
         self.parse_dates = kwds.pop('parse_dates', False)
+        self.infer_datetime_format = kwds.pop('infer_datetime_format', False)
         self.date_parser = kwds.pop('date_parser', None)
         self.dayfirst = kwds.pop('dayfirst', False)
         self.keep_date_col = kwds.pop('keep_date_col', False)
@@ -666,8 +674,11 @@ class ParserBase(object):
         self.false_values = kwds.get('false_values')
         self.tupleize_cols = kwds.get('tupleize_cols', False)
 
-        self._date_conv = _make_date_converter(date_parser=self.date_parser,
-                                               dayfirst=self.dayfirst)
+        self._date_conv = _make_date_converter(
+            date_parser=self.date_parser,
+            dayfirst=self.dayfirst,
+            infer_datetime_format=self.infer_datetime_format
+        )
 
         # validate header options for mi
         self.header = kwds.get('header')
@@ -1168,6 +1179,9 @@ def TextParser(*args, **kwds):
     comment : str, default None
         Comment out remainder of line
     parse_dates : boolean, default False
+    infer_datetime_format : boolean, default False
+        If True and parse_dates is enabled for a column, attempt to infer
+        the datetime format to speed up the processing
     keep_date_col : boolean, default False
     date_parser : function, default None
     skiprows : list of integers
@@ -1870,13 +1884,17 @@ class PythonParser(ParserBase):
         return self._check_thousands(lines)
 
 
-def _make_date_converter(date_parser=None, dayfirst=False):
+def _make_date_converter(date_parser=None, dayfirst=False,
+                         infer_datetime_format=False):
     def converter(*date_cols):
         if date_parser is None:
             strs = _concat_date_cols(date_cols)
             try:
-                return tslib.array_to_datetime(com._ensure_object(strs),
-                                               utc=None, dayfirst=dayfirst)
+                return tools.to_datetime(com._ensure_object(strs),
+                                         utc=None,
+                                         box=False,
+                                         dayfirst=dayfirst,
+                                         infer_format=infer_datetime_format)
             except:
                 return lib.try_parse_dates(strs, dayfirst=dayfirst)
         else:
