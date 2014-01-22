@@ -87,15 +87,16 @@ def _guess_datetime_format(datetime_string, **kwargs):
     found_attrs = set()
 
     for attrs, attr_format in datetime_attrs_to_format:
+        # If a given attribute has been placed in the format string, skip
+        # over other formats for that same underlying attribute (IE, month
+        # can be represented in multiple different ways)
         if set(attrs) & found_attrs:
             continue
 
         if all(getattr(parsed_datetime, attr) is not None for attr in attrs):
             for i, token_format in enumerate(format_guess):
-                if (
-                        token_format is None and
-                        tokens[i] == parsed_datetime.strftime(attr_format)
-                        ):
+                if (token_format is None and
+                        tokens[i] == parsed_datetime.strftime(attr_format)):
                     format_guess[i] = attr_format
                     found_attrs.update(attrs)
                     break

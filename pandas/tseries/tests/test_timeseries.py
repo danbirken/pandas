@@ -50,6 +50,13 @@ def _skip_if_no_pytz():
     except ImportError:
         raise nose.SkipTest("pytz not installed")
 
+def _skip_if_has_locale():
+    import locale
+    lang, _ = locale.getlocale()
+    if lang is not None:
+        raise nose.SkipTest(
+            "format codes cannot work with a locale of {0}".format(lang)
+        )
 
 class TestTimeSeriesDuplicates(tm.TestCase):
     _multiprocess_can_split_ = True
@@ -910,12 +917,8 @@ class TestTimeSeries(tm.TestCase):
         self.assertEquals(result[0], s[0])
 
     def test_to_datetime_with_apply(self):
-
         # this is only locale tested with US/None locales
-        import locale
-        (lang,encoding) = locale.getlocale()
-        if lang is not None:
-            raise nose.SkipTest("format codes cannot work with a locale of {0}".format(lang))
+        _skip_if_has_locale()
 
         # GH 5195
         # with a format and coerce a single item to_datetime fails
@@ -3216,6 +3219,20 @@ class TestGuessDatetimeFormat(tm.TestCase):
             ('2011-12-30 00:00:00', '%Y-%m-%d %H:%M:%S'),
             ('2011-12-30T00:00:00', '%Y-%m-%dT%H:%M:%S'),
             ('2011-12-30 00:00:00.000000', '%Y-%m-%d %H:%M:%S.%f'),
+        )
+
+        for dt_string, dt_format in dt_string_to_format:
+            self.assertEquals(
+                tools._guess_datetime_format(dt_string),
+                dt_format
+            )
+
+    def test_guess_datetime_format_with_locale_specific_formats(self):
+        # The month names will vary depending on the locale, in which
+        # case these wont be parsed properly (dateutil can't parse them)
+        _skip_if_has_locale()
+
+        dt_string_to_format = (
             ('30/Dec/2011', '%d/%b/%Y'),
             ('30/December/2011', '%d/%B/%Y'),
             ('30/Dec/2011 00:00:00', '%d/%b/%Y %H:%M:%S'),
