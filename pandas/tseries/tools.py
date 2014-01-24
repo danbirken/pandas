@@ -183,7 +183,8 @@ def _guess_datetime_format_for_array(arr, **kwargs):
         return _guess_datetime_format(arr[non_nan_elements[0]], **kwargs)
 
 def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
-                format=None, coerce=False, unit='ns', infer_format=False):
+                format=None, coerce=False, unit='ns',
+                infer_datetime_format=False):
     """
     Convert argument to datetime
 
@@ -206,9 +207,9 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
     coerce : force errors to NaT (False by default)
     unit : unit of the arg (D,s,ms,us,ns) denote the unit in epoch
         (e.g. a unix timestamp), which is an integer/float number
-    infer_format: If no `format` is given, try to infer the format
-                  based on the first datetime string.  Provides a large
-                  speed-up in many cases.
+    infer_datetime_format: boolean, default False
+        If no `format` is given, try to infer the format based on the first
+        datetime string. Provides a large speed-up in many cases.
 
     Returns
     -------
@@ -248,7 +249,7 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
 
         arg = com._ensure_object(arg)
 
-        if infer_format and format is None:
+        if infer_datetime_format and format is None:
             format = _guess_datetime_format_for_array(arg, dayfirst=dayfirst)
 
             if format is not None:
@@ -287,10 +288,10 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
                     except ValueError:
                         # Only raise this error if the user provided the
                         # datetime format, and not when it was inferred
-                        if not infer_format:
+                        if not infer_datetime_format:
                             raise
 
-            if result is None and (format is None or infer_format):
+            if result is None and (format is None or infer_datetime_format):
                 result = tslib.array_to_datetime(arg, raise_=errors == 'raise',
                                                  utc=utc, dayfirst=dayfirst,
                                                  coerce=coerce, unit=unit)

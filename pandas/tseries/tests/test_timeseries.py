@@ -3127,7 +3127,7 @@ class TestSlicing(tm.TestCase):
 
 
 class TestToDatetimeInferFormat(tm.TestCase):
-    def test_to_datetime_infer_format_consistent_format(self):
+    def test_to_datetime_infer_datetime_format_consistent_format(self):
         time_series = pd.Series(
             pd.date_range('20000101', periods=50, freq='H')
         )
@@ -3144,15 +3144,19 @@ class TestToDatetimeInferFormat(tm.TestCase):
             )
 
             with_format = pd.to_datetime(s_as_dt_strings, format=test_format)
-            no_infer = pd.to_datetime(s_as_dt_strings, infer_format=False)
-            yes_infer = pd.to_datetime(s_as_dt_strings, infer_format=True)
+            no_infer = pd.to_datetime(
+                s_as_dt_strings, infer_datetime_format=False
+            )
+            yes_infer = pd.to_datetime(
+                s_as_dt_strings, infer_datetime_format=True
+            )
 
             # Whether the format is explicitly passed, it is inferred, or
             # it is not inferred, the results should all be the same
             self.assert_(np.array_equal(with_format, no_infer))
             self.assert_(np.array_equal(no_infer, yes_infer))
 
-    def test_to_datetime_infer_format_inconsistent_format(self):
+    def test_to_datetime_infer_datetime_format_inconsistent_format(self):
         test_series = pd.Series(
             np.array([
                 '01/01/2011 00:00:00',
@@ -3160,11 +3164,11 @@ class TestToDatetimeInferFormat(tm.TestCase):
                 '2011-01-03T00:00:00',
         ]))
 
-        # When the format is inconsistent, infer_format should just
+        # When the format is inconsistent, infer_datetime_format should just
         # fallback to the default parsing
         self.assert_(np.array_equal(
-            pd.to_datetime(test_series, infer_format=False),
-            pd.to_datetime(test_series, infer_format=True)
+            pd.to_datetime(test_series, infer_datetime_format=False),
+            pd.to_datetime(test_series, infer_datetime_format=True)
         ))
 
         test_series = pd.Series(
@@ -3175,11 +3179,11 @@ class TestToDatetimeInferFormat(tm.TestCase):
         ]))
 
         self.assert_(np.array_equal(
-            pd.to_datetime(test_series, infer_format=False),
-            pd.to_datetime(test_series, infer_format=True)
+            pd.to_datetime(test_series, infer_datetime_format=False),
+            pd.to_datetime(test_series, infer_datetime_format=True)
         ))
 
-    def test_to_datetime_infer_format_series_with_nans(self):
+    def test_to_datetime_infer_datetime_format_series_with_nans(self):
         test_series = pd.Series(
             np.array([
                 '01/01/2011 00:00:00',
@@ -3189,11 +3193,11 @@ class TestToDatetimeInferFormat(tm.TestCase):
         ]))
 
         self.assert_(np.array_equal(
-            pd.to_datetime(test_series, infer_format=False),
-            pd.to_datetime(test_series, infer_format=True)
+            pd.to_datetime(test_series, infer_datetime_format=False),
+            pd.to_datetime(test_series, infer_datetime_format=True)
         ))
 
-    def test_to_datetime_infer_format_series_starting_with_nans(self):
+    def test_to_datetime_infer_datetime_format_series_starting_with_nans(self):
         test_series = pd.Series(
             np.array([
                 np.nan,
@@ -3204,8 +3208,8 @@ class TestToDatetimeInferFormat(tm.TestCase):
         ]))
 
         self.assert_(np.array_equal(
-            pd.to_datetime(test_series, infer_format=False),
-            pd.to_datetime(test_series, infer_format=True)
+            pd.to_datetime(test_series, infer_datetime_format=False),
+            pd.to_datetime(test_series, infer_datetime_format=True)
         ))
 
 
