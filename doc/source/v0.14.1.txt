@@ -117,3 +117,4 @@ Bug Fixes
 - Bug in ``MultiIndex.append``, ``concat`` and ``pivot_table`` don't preserve timezone (:issue:`6606`)
 - Bug in ``.loc`` with a list of indexers on a single-multi index level (that is not nested) (:issue:`7349`)
 - Bug in ``Series.map`` when mapping a dict with tuple keys of different lengths (:issue:`7333`)
+- Bug in ``read_sql_table`` error when reading postgres table with timezone (:issue:`7139`)
