@@ -254,7 +254,9 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
 
         arg = com._ensure_object(arg)
 
-        if infer_datetime_format and format is None:
+        format_provided = format is not None
+
+        if infer_datetime_format and not format_provided:
             format = _guess_datetime_format_for_array(arg, dayfirst=dayfirst)
 
             if format is not None:
@@ -293,7 +295,7 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
                     except ValueError:
                         # Only raise this error if the user provided the
                         # datetime format, and not when it was inferred
-                        if not infer_datetime_format:
+                        if format_provided:
                             raise
 
             if result is None and (format is None or infer_datetime_format):
@@ -306,11 +308,19 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
             return result
 
         except ValueError as e:
+            # If a format was specified, always raise an error
+            if format_provided:
+                raise
+
+            # Otherwise attempt a fallback conversion, and only raise an
+            # exception if errors == 'raise'
             try:
                 values, tz = tslib.datetime_to_datetime64(arg)
                 return DatetimeIndex._simple_new(values, None, tz=tz)
             except (ValueError, TypeError):
-                raise e
+                if errors == 'raise':
+                    raise e
+                return arg
 
     if arg is None:
         return arg

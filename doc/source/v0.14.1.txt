@@ -212,3 +212,4 @@ Bug Fixes
 - Bug in ``.ix`` getitem should always return a Series (:issue:`7150`)
 - Bug in multi-index slicing with incomplete indexers (:issue:`7399`)
 - Bug in multi-index slicing with a step in a sliced level (:issue:`7400`)
+- Bug in ``read_sql_table`` error when reading postgres table with timezone (:issue:`7139`)
