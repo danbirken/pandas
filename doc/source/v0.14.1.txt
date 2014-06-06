@@ -257,3 +257,4 @@ Bug Fixes
 
 - Bug in non-monotonic ``Index.union`` may preserve ``name`` incorrectly (:issue:`7458`)
 - Bug in ``DatetimeIndex.intersection`` doesn't preserve timezone (:issue:`4690`)
+- Bug in ``read_sql_table`` error when reading postgres table with timezone (:issue:`7139`)

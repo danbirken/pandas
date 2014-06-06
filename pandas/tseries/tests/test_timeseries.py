@@ -1110,6 +1110,37 @@ class TestTimeSeries(tm.TestCase):
             )
         )
 
+    def test_to_datetime_with_different_timezones(self):
+        # GH #7139
+
+        _skip_if_no_pytz()
+        import pytz
+
+        dts = [
+            datetime(2000, 1, 1, tzinfo=pytz.FixedOffset(-300)),
+            datetime(2000, 1, 2, tzinfo=pytz.FixedOffset(-480)),
+        ]
+
+        # to_datetime() can't process datetimes with different timezones
+        # into a datetime64 array with utc=False (the default)
+        self.assert_numpy_array_equal(
+            pd.to_datetime(dts),
+            dts
+        )
+           
+        # But if utc=True, then the datetimes are converted properly into
+        # a UTC datetime64 array
+        self.assert_numpy_array_equal(
+            pd.to_datetime(dts, box=False, utc=True),
+            np.array(
+                [
+                    Timestamp('2000-01-01 05:00:00+0000').asm8,
+                    Timestamp('2000-01-02 08:00:00+0000').asm8,
+                ],
+                dtype='M8'
+            )
+        )
+
     def test_index_to_datetime(self):
         idx = Index(['1/1/2000', '1/2/2000', '1/3/2000'])
 
