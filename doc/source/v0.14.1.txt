@@ -269,3 +269,4 @@ Bug Fixes
 - Bug in grouped `hist` doesn't handle `rot` kw and `sharex` kw properly (:issue:`7234`)
 - Bug in ``.loc`` performing fallback integer indexing with ``object`` dtype indices (:issue:`7496`)
 - Bug (regression) in ``PeriodIndex`` constructor when passed ``Series`` objects (:issue:`7701`).
+- Bug in ``read_sql_table`` error when reading postgres table with timezone (:issue:`7139`)

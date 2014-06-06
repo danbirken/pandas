@@ -77,22 +77,25 @@ def _convert_params(sql, params):
     return args
 
 
-def _handle_date_column(col, format=None):
+def _handle_date_column(col, format=None, convert_dates_to_utc=None):
     if isinstance(format, dict):
         return to_datetime(col, **format)
     else:
         if format in ['D', 's', 'ms', 'us', 'ns']:
-            return to_datetime(col, coerce=True, unit=format)
+            return to_datetime(
+                col, coerce=True, unit=format, utc=convert_dates_to_utc)
         elif (issubclass(col.dtype.type, np.floating)
                 or issubclass(col.dtype.type, np.integer)):
             # parse dates as timestamp
             format = 's' if format is None else format
-            return to_datetime(col, coerce=True, unit=format)
+            return to_datetime(
+                col, coerce=True, unit=format, utc=convert_dates_to_utc)
         else:
-            return to_datetime(col, coerce=True, format=format)
+            return to_datetime(
+                col, coerce=True, format=format, utc=convert_dates_to_utc)
 
 
-def _parse_date_columns(data_frame, parse_dates):
+def _parse_date_columns(data_frame, parse_dates, convert_dates_to_utc=None):
     """
     Force non-datetime columns to be read as such.
     Supports both string formatted and integer timestamp columns
@@ -110,7 +113,8 @@ def _parse_date_columns(data_frame, parse_dates):
             fmt = parse_dates[col_name]
         except TypeError:
             fmt = None
-        data_frame[col_name] = _handle_date_column(df_col, format=fmt)
+        data_frame[col_name] = _handle_date_column(
+            df_col, format=fmt, convert_dates_to_utc=convert_dates_to_utc)
 
     return data_frame
 
@@ -262,7 +266,8 @@ def uquery(sql, con=None, cur=None, retry=True, params=None):
 #--- Read and write to DataFrames
 
 def read_sql_table(table_name, con, schema=None, index_col=None,
-                   coerce_float=True, parse_dates=None, columns=None):
+                   coerce_float=True, parse_dates=None, columns=None,
+                   convert_dates_to_utc=False):
     """Read SQL database table into a DataFrame.
 
     Given a table name and an SQLAlchemy engine, returns a DataFrame.
@@ -293,6 +298,12 @@ def read_sql_table(table_name, con, schema=None, index_col=None,
           such as SQLite
     columns : list
         List of column names to select from sql table
+    convert_dates_to_utc : boolean, default False
+        If parsing datetimes with time zones, convert them into UTC.  If
+        datetimes are already UTC (or have no time zone information), this
+        flag does nothing.
+        Converting datetimes to UTC allows for more efficient storage and
+        operation speed within a DataFrame.
 
     Returns
     -------
@@ -318,7 +329,8 @@ def read_sql_table(table_name, con, schema=None, index_col=None,
     pandas_sql = PandasSQLAlchemy(con, meta=meta)
     table = pandas_sql.read_table(
         table_name, index_col=index_col, coerce_float=coerce_float,
-        parse_dates=parse_dates, columns=columns)
+        parse_dates=parse_dates, columns=columns,
+        convert_dates_to_utc=convert_dates_to_utc)
 
     if table is not None:
         return table
@@ -327,7 +339,7 @@ def read_sql_table(table_name, con, schema=None, index_col=None,
 
 
 def read_sql_query(sql, con, index_col=None, coerce_float=True, params=None,
-                   parse_dates=None):
+                   parse_dates=None, convert_dates_to_utc=False):
     """Read SQL query into a DataFrame.
 
     Returns a DataFrame corresponding to the result set of the query
@@ -362,6 +374,12 @@ def read_sql_query(sql, con, index_col=None, coerce_float=True, params=None,
           to the keyword arguments of :func:`pandas.to_datetime`
           Especially useful with databases without native Datetime support,
           such as SQLite
+    convert_dates_to_utc : boolean, default False
+        If parsing datetimes with time zones, convert them into UTC.  If
+        datetimes are already UTC (or have no time zone information), this
+        flag does nothing.
+        Converting datetimes to UTC allows for more efficient storage and
+        operation speed within a DataFrame.
 
     Returns
     -------
@@ -376,11 +394,11 @@ def read_sql_query(sql, con, index_col=None, coerce_float=True, params=None,
     pandas_sql = pandasSQL_builder(con)
     return pandas_sql.read_sql(
         sql, index_col=index_col, params=params, coerce_float=coerce_float,
-        parse_dates=parse_dates)
+        parse_dates=parse_dates, convert_dates_to_utc=convert_dates_to_utc)
 
 
 def read_sql(sql, con, index_col=None, coerce_float=True, params=None,
-             parse_dates=None, columns=None):
+             parse_dates=None, columns=None, convert_dates_to_utc=False):
     """
     Read SQL query or database table into a DataFrame.
 
@@ -415,6 +433,12 @@ def read_sql(sql, con, index_col=None, coerce_float=True, params=None,
     columns : list
         List of column names to select from sql table (only used when reading
         a table).
+    convert_dates_to_utc : boolean, default False
+        If parsing datetimes with time zones, convert them into UTC.  If
+        datetimes are already UTC (or have no time zone information), this
+        flag does nothing.
+        Converting datetimes to UTC allows for more efficient storage and
+        operation speed within a DataFrame.
 
     Returns
     -------
@@ -438,7 +462,8 @@ def read_sql(sql, con, index_col=None, coerce_float=True, params=None,
     if isinstance(pandas_sql, PandasSQLLegacy):
         return pandas_sql.read_sql(
             sql, index_col=index_col, params=params,
-            coerce_float=coerce_float, parse_dates=parse_dates)
+            coerce_float=coerce_float, parse_dates=parse_dates,
+            convert_dates_to_utc=convert_dates_to_utc)
 
     try:
         _is_table_name = pandas_sql.has_table(sql)
@@ -449,11 +474,13 @@ def read_sql(sql, con, index_col=None, coerce_float=True, params=None,
         pandas_sql.meta.reflect(only=[sql])
         return pandas_sql.read_table(
             sql, index_col=index_col, coerce_float=coerce_float,
-            parse_dates=parse_dates, columns=columns)
+            parse_dates=parse_dates, columns=columns,
+            convert_dates_to_utc=convert_dates_to_utc)
     else:
         return pandas_sql.read_sql(
             sql, index_col=index_col, params=params,
-            coerce_float=coerce_float, parse_dates=parse_dates)
+            coerce_float=coerce_float, parse_dates=parse_dates,
+            convert_dates_to_utc=convert_dates_to_utc)
 
 
 def to_sql(frame, name, con, flavor='sqlite', schema=None, if_exists='fail',
@@ -684,7 +711,8 @@ class PandasSQLTable(PandasObject):
                 chunk_iter = zip(*[arr[start_i:end_i] for arr in data_list])
                 self._execute_insert(conn, keys, chunk_iter)
 
-    def read(self, coerce_float=True, parse_dates=None, columns=None):
+    def read(self, coerce_float=True, parse_dates=None, columns=None,
+             convert_dates_to_utc=None):
 
         if columns is not None and len(columns) > 0:
             from sqlalchemy import select
@@ -702,7 +730,8 @@ class PandasSQLTable(PandasObject):
         self.frame = DataFrame.from_records(
             data, columns=column_names, coerce_float=coerce_float)
 
-        self._harmonize_columns(parse_dates=parse_dates)
+        self._harmonize_columns(
+            parse_dates=parse_dates, convert_dates_to_utc=convert_dates_to_utc)
 
         if self.index is not None:
             self.frame.set_index(self.index, inplace=True)
@@ -778,7 +807,7 @@ class PandasSQLTable(PandasObject):
 
         return Table(self.name, meta, *columns, schema=schema)
 
-    def _harmonize_columns(self, parse_dates=None):
+    def _harmonize_columns(self, parse_dates=None, convert_dates_to_utc=None):
         """
         Make the DataFrame's column types align with the SQL table
         column types.
@@ -806,7 +835,8 @@ class PandasSQLTable(PandasObject):
 
                 if col_type is datetime or col_type is date:
                     if not issubclass(df_col.dtype.type, np.datetime64):
-                        self.frame[col_name] = _handle_date_column(df_col)
+                        self.frame[col_name] = _handle_date_column(
+                            df_col, convert_dates_to_utc=convert_dates_to_utc)
 
                 elif col_type is float:
                     # floats support NA, can always convert!
@@ -824,7 +854,8 @@ class PandasSQLTable(PandasObject):
                     except TypeError:
                         fmt = None
                     self.frame[col_name] = _handle_date_column(
-                        df_col, format=fmt)
+                        df_col, format=fmt,
+                        convert_dates_to_utc=convert_dates_to_utc)
 
             except KeyError:
                 pass  # this column not in results
@@ -912,14 +943,16 @@ class PandasSQLAlchemy(PandasSQL):
         return self.engine.execute(*args, **kwargs)
 
     def read_table(self, table_name, index_col=None, coerce_float=True,
-                   parse_dates=None, columns=None, schema=None):
+                   parse_dates=None, columns=None, schema=None,
+                   convert_dates_to_utc=None):
         table = PandasSQLTable(
             table_name, self, index=index_col, schema=schema)
         return table.read(coerce_float=coerce_float,
-                          parse_dates=parse_dates, columns=columns)
+                          parse_dates=parse_dates, columns=columns,
+                          convert_dates_to_utc=convert_dates_to_utc)
 
     def read_sql(self, sql, index_col=None, coerce_float=True,
-                 parse_dates=None, params=None):
+                 parse_dates=None, params=None, convert_dates_to_utc=None):
         args = _convert_params(sql, params)
 
         result = self.execute(*args)
@@ -929,7 +962,8 @@ class PandasSQLAlchemy(PandasSQL):
         data_frame = DataFrame.from_records(
             data, columns=columns, coerce_float=coerce_float)
 
-        _parse_date_columns(data_frame, parse_dates)
+        _parse_date_columns(
+            data_frame, parse_dates, convert_dates_to_utc=convert_dates_to_utc)
 
         if index_col is not None:
             data_frame.set_index(index_col, inplace=True)
@@ -1181,7 +1215,7 @@ class PandasSQLLegacy(PandasSQL):
             raise_with_traceback(ex)
 
     def read_sql(self, sql, index_col=None, coerce_float=True, params=None,
-                 parse_dates=None):
+                 parse_dates=None, convert_dates_to_utc=None):
         args = _convert_params(sql, params)
         cursor = self.execute(*args)
         columns = [col_desc[0] for col_desc in cursor.description]
@@ -1191,7 +1225,8 @@ class PandasSQLLegacy(PandasSQL):
         data_frame = DataFrame.from_records(
             data, columns=columns, coerce_float=coerce_float)
 
-        _parse_date_columns(data_frame, parse_dates)
+        _parse_date_columns(
+            data_frame, parse_dates, convert_dates_to_utc=convert_dates_to_utc)
 
         if index_col is not None:
             data_frame.set_index(index_col, inplace=True)
