@@ -1121,8 +1121,8 @@ class TestTimeSeries(tm.TestCase):
         import pytz
 
         dts = [
-            datetime(2000, 1, 1, tzinfo=pytz.timezone('US/Eastern')),
-            datetime(2000, 1, 2, tzinfo=pytz.timezone('US/Pacific')),
+            datetime(2000, 1, 1, tzinfo=pytz.FixedOffset(-300)),
+            datetime(2000, 1, 2, tzinfo=pytz.FixedOffset(-480)),
         ]
 
         # to_datetime() can't process datetimes with different timezones
