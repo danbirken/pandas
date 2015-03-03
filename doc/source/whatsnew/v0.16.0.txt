@@ -435,3 +435,4 @@ Bug Fixes
 - Bug in groupby MultiIndex with missing pair (:issue:`9049`, :issue:`9344`)
 - Fixed bug in ``Series.groupby`` where grouping on ``MultiIndex`` levels would ignore the sort argument (:issue:`9444`)
 - Fix bug in ``DataFrame.Groupby`` where sort=False is ignored in case of Categorical columns. (:issue:`8868`)
+- Bug in ``read_sql_table`` error when reading postgres table with timezone (:issue:`7139`)
