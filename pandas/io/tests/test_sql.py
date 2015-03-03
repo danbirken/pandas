@@ -29,7 +29,7 @@ import numpy as np
 from datetime import datetime, date, time
 
 from pandas import DataFrame, Series, Index, MultiIndex, isnull, concat
-from pandas import date_range, to_datetime, to_timedelta
+from pandas import date_range, to_datetime, to_timedelta, Timestamp
 import pandas.compat as compat
 from pandas.compat import StringIO, range, lrange, string_types
 from pandas.core.datetools import format as date_format
@@ -100,6 +100,7 @@ SQL_STRINGS = {
         'postgresql': """CREATE TABLE types_test_data (
                     "TextCol" TEXT,
                     "DateCol" TIMESTAMP,
+                    "DateColWithTz" TIMESTAMP WITH TIME ZONE,
                     "IntDateCol" INTEGER,
                     "FloatCol" DOUBLE PRECISION,
                     "IntCol" INTEGER,
@@ -109,18 +110,36 @@ SQL_STRINGS = {
                 )"""
     },
     'insert_test_types': {
-        'sqlite': """
+        'sqlite': {
+            'query': """
                 INSERT INTO types_test_data
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-        'mysql': """
+            'fields': (
+                'TextCol', 'DateCol', 'IntDateCol', 'FloatCol',
+                'IntCol', 'BoolCol', 'IntColWithNull', 'BoolColWithNull'
+            )
+        },
+        'mysql': {
+            'query': """
                 INSERT INTO types_test_data
                 VALUES("%s", %s, %s, %s, %s, %s, %s, %s)
                 """,
-        'postgresql': """
+            'fields': (
+                'TextCol', 'DateCol', 'IntDateCol', 'FloatCol',
+                'IntCol', 'BoolCol', 'IntColWithNull', 'BoolColWithNull'
+            )
+        },
+        'postgresql': {
+            'query': """
                 INSERT INTO types_test_data
-                VALUES(%s, %s, %s, %s, %s, %s, %s, %s)
-                """
+                VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+            'fields': (
+                'TextCol', 'DateCol', 'DateColWithTz', 'IntDateCol', 'FloatCol',
+                'IntCol', 'BoolCol', 'IntColWithNull', 'BoolColWithNull'
+            )
+        },
     },
     'read_parameters': {
         'sqlite': "SELECT * FROM iris WHERE Name=? AND SepalLength=?",
@@ -218,11 +237,36 @@ class PandasSQLTest(unittest.TestCase):
         self._get_exec().execute(SQL_STRINGS['create_test_types'][self.flavor])
         ins = SQL_STRINGS['insert_test_types'][self.flavor]
 
-        data = [(
-            'first', '2000-01-03 00:00:00', 535852800, 10.10, 1, False, 1, False),
-            ('first', '2000-01-04 00:00:00', 1356998400, 10.10, 1, False, None, None)]
+        data = [
+            {
+                'TextCol': 'first',
+                'DateCol': '2000-01-03 00:00:00',
+                'DateColWithTz': '2000-01-01 00:00:00-07:00',
+                'IntDateCol': 535852800,
+                'FloatCol': 10.10,
+                'IntCol': 1,
+                'BoolCol': False,
+                'IntColWithNull': 1,
+                'BoolColWithNull': False,
+            },
+            {
+                'TextCol': 'first',
+                'DateCol': '2000-01-04 00:00:00',
+                'DateColWithTz': '2000-06-01 00:00:00-07:00',
+                'IntDateCol': 1356998400,
+                'FloatCol': 10.10,
+                'IntCol': 1,
+                'BoolCol': False,
+                'IntColWithNull': None,
+                'BoolColWithNull': None,
+            },
+        ]
+
         for d in data:
-            self._get_exec().execute(ins, d)
+            self._get_exec().execute(
+                ins['query'],
+                [d[field] for field in ins['fields']]
+            )
 
     def _count_rows(self, table_name):
         result = self._get_exec().execute(
@@ -1511,6 +1555,14 @@ class TestPostgreSQLAlchemy(_TestSQLAlchemy):
         res1 = sql.read_sql_table('test_schema_other2', self.conn, schema='other')
         res2 = pdsql.read_table('test_schema_other2')
         tm.assert_frame_equal(res1, res2)
+
+    def test_datetime_with_time_zone(self):
+        # With the default convert_dates_to_utc=False, the datetimes with
+        # time zone should not get converted into datetime64s
+        df = sql.read_sql_table("types_test_data", self.conn)
+        self.assertEqual(df.DateColWithTz.dtype.type, np.object_)
+        # And the values should still have time zone info
+        self.assertTrue(df.DateColWithTz[0].tzinfo is not None)
 
 
 #------------------------------------------------------------------------------
