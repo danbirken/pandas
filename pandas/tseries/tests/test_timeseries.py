@@ -1093,12 +1093,15 @@ class TestTimeSeries(tm.TestCase):
             datetime(2000, 1, 2, tzinfo=pytz.FixedOffset(-480)),
         ]
 
+        results = pd.to_datetime(dts)
+
         # to_datetime() can't process datetimes with different timezones
         # into a datetime64 array with utc=False (the default)
-        self.assert_numpy_array_equal(
-            pd.to_datetime(dts),
-            dts
-        )
+        self.assert_numpy_array_equal(results, dts)
+
+        # However it will convert them into Timestamp objects
+        for item in results:
+            self.assertIsInstance(item, Timestamp)
            
         # But if utc=True, then the datetimes are converted properly into
         # a UTC datetime64 array

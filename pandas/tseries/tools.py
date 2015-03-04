@@ -329,14 +329,21 @@ def to_datetime(arg, errors='ignore', dayfirst=False, utc=None, box=True,
             if format_provided:
                 raise
 
-            # Otherwise attempt a fallback conversion, and only raise an
-            # exception if errors == 'raise'
+            # Otherwise attempt a fallback conversion to dt64, and only raise
+            # an exception if errors == 'raise'
             try:
                 values, tz = tslib.datetime_to_datetime64(arg)
                 return DatetimeIndex._simple_new(values, None, tz=tz)
             except (ValueError, TypeError):
                 if errors == 'raise':
                     raise e
+            
+            # As the final fallback, attempt to convert the input array to
+            # an array of `Timestamp`s.  If not possible, just return the
+            # initial argument
+            try:
+                return [Timestamp(x) for x in arg]
+            except (ValueError, TypeError):
                 return arg
 
     if arg is None:

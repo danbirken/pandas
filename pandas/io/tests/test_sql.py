@@ -241,7 +241,7 @@ class PandasSQLTest(unittest.TestCase):
             {
                 'TextCol': 'first',
                 'DateCol': '2000-01-03 00:00:00',
-                'DateColWithTz': '2000-01-01 00:00:00-07:00',
+                'DateColWithTz': '2000-01-01 00:00:00-00:00',
                 'IntDateCol': 535852800,
                 'FloatCol': 10.10,
                 'IntCol': 1,
@@ -252,7 +252,7 @@ class PandasSQLTest(unittest.TestCase):
             {
                 'TextCol': 'first',
                 'DateCol': '2000-01-04 00:00:00',
-                'DateColWithTz': '2000-06-01 00:00:00-07:00',
+                'DateColWithTz': '2000-06-01 00:00:00-00:00',
                 'IntDateCol': 1356998400,
                 'FloatCol': 10.10,
                 'IntCol': 1,
@@ -1557,13 +1557,11 @@ class TestPostgreSQLAlchemy(_TestSQLAlchemy):
         tm.assert_frame_equal(res1, res2)
 
     def test_datetime_with_time_zone(self):
-        # With the default convert_dates_to_utc=False, the datetimes with
-        # time zone should not get converted into datetime64s
+        # Test to see if we read the date column with timezones that
+        # the timezone information is maintained (GH #7139)
         df = sql.read_sql_table("types_test_data", self.conn)
         self.assertEqual(df.DateColWithTz.dtype.type, np.object_)
-        # And the values should still have time zone info
         self.assertTrue(df.DateColWithTz[0].tzinfo is not None)
-
 
 #------------------------------------------------------------------------------
 #--- Test Sqlite / MySQL fallback
